@@ -9,11 +9,57 @@ RUN pip3 install --upgrade pip
 RUN pip3 install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu118
 RUN pip3 install xformers==0.0.22.post4 --index-url https://download.pytorch.org/whl/cu118
 
-ARG version 
+ARG version
 
 RUN pip3 install lama-cleaner==$version
 RUN lama-cleaner --install-plugins-package
 
+# Environment variables for configuration
+ENV IOPAINT_HOST=0.0.0.0
+ENV IOPAINT_PORT=8080
+ENV IOPAINT_MODEL=lama
+ENV IOPAINT_DEVICE=cuda
+ENV IOPAINT_QUALITY=95
+ENV IOPAINT_NO_HALF=false
+ENV IOPAINT_LOW_MEM=false
+ENV IOPAINT_CPU_OFFLOAD=false
+ENV IOPAINT_DISABLE_NSFW_CHECKER=false
+
 EXPOSE 8080
 
-CMD ["bash"]
+# Create startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Convert string boolean to actual boolean flags\n\
+ARGS="--host $IOPAINT_HOST --port $IOPAINT_PORT --model $IOPAINT_MODEL --device $IOPAINT_DEVICE --quality $IOPAINT_QUALITY"\n\
+\n\
+if [ "$IOPAINT_NO_HALF" = "true" ]; then\n\
+    ARGS="$ARGS --no-half"\n\
+fi\n\
+\n\
+if [ "$IOPAINT_LOW_MEM" = "true" ]; then\n\
+    ARGS="$ARGS --low-mem"\n\
+fi\n\
+\n\
+if [ "$IOPAINT_CPU_OFFLOAD" = "true" ]; then\n\
+    ARGS="$ARGS --cpu-offload"\n\
+fi\n\
+\n\
+if [ "$IOPAINT_DISABLE_NSFW_CHECKER" = "true" ]; then\n\
+    ARGS="$ARGS --disable-nsfw-checker"\n\
+fi\n\
+\n\
+if [ -n "$IOPAINT_OUTPUT_DIR" ]; then\n\
+    ARGS="$ARGS --output-dir $IOPAINT_OUTPUT_DIR"\n\
+fi\n\
+\n\
+if [ -n "$IOPAINT_INPUT" ]; then\n\
+    ARGS="$ARGS --input $IOPAINT_INPUT"\n\
+fi\n\
+\n\
+echo "Starting IOPaint with args: $ARGS"\n\
+exec lama-cleaner start $ARGS\n\
+' > /usr/local/bin/start-iopaint.sh && chmod +x /usr/local/bin/start-iopaint.sh
+
+CMD ["/usr/local/bin/start-iopaint.sh"]
